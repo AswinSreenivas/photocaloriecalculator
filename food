@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberCalories - AI Food Scanner</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #0a0a0f;
+            color: #00ff9d;
+        }
+        .neon-border {
+            box-shadow: 0 0 10px #00ff9d, 0 0 20px #00ff9d, 0 0 30px #00ff9d;
+        }
+        .cyberpunk-card {
+            background: rgba(10, 10, 15, 0.9);
+            border: 2px solid #00ff9d;
+            backdrop-filter: blur(10px);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #00ff9d;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .glitch {
+            animation: glitch 1s linear infinite;
+        }
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px,0) skew(0deg); }
+            4%, 60% { transform: translate(-2px,0) skew(0deg); }
+            62% { transform: translate(0,0) skew(5deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen p-4">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold glitch">QuickCalorieTracker</h1>
+            <p class="text-xl mt-2">AI Food Scanner & Calorie Tracker</p>
+        </header>
+
+        <div class="max-w-md mx-auto cyberpunk-card p-6 rounded-lg">
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl">Daily Calories</h2>
+                    <span class="text-2xl">{{ totalCalories }}/2000</span>
+                </div>
+                <div class="w-full bg-gray-800 rounded-full h-4 neon-border">
+                    <div class="bg-[#00ff9d] h-4 rounded-full transition-all duration-500"
+                         :style="{ width: `${(totalCalories/2000)*100}%` }"></div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div v-if="!imageUrl" class="text-center">
+                    <label class="block w-full p-4 border-2 border-dashed border-[#00ff9d] rounded-lg cursor-pointer hover:bg-[#00ff9d10] transition-all">
+                        <input type="file" accept="image/*" capture="environment" @change="handleImage" class="hidden">
+                        <i class="bi bi-camera text-4xl"></i>
+                        <p class="mt-2">Take or Upload Food Photo</p>
+                    </label>
+                </div>
+
+                <div v-if="imageUrl" class="space-y-4">
+                    <img :src="imageUrl" class="w-full h-48 object-cover rounded-lg neon-border">
+                    <div v-if="isAnalyzing" class="flex justify-center">
+                        <div class="loader"></div>
+                    </div>
+                    <div v-if="analysis" class="cyberpunk-card p-4 rounded-lg">
+                        <h3 class="text-lg font-bold mb-2">Analysis Result:</h3>
+                        <p>{{ analysis }}</p>
+                        <template v-if="calories">
+                            <div class="mt-4 flex justify-between items-center">
+                                <span>Estimated Calories:</span>
+                                <span class="text-xl font-bold">{{ calories }} kcal</span>
+                            </div>
+                            <button @click="addToDaily" class="w-full mt-4 bg-[#00ff9d] text-black py-2 rounded-lg font-bold hover:bg-[#00cc7d] transition-all">
+                                Add to Daily Count
+                            </button>
+                        </template>
+                    </div>
+                    <button @click="resetImage" class="w-full border-2 border-[#00ff9d] py-2 rounded-lg hover:bg-[#00ff9d10] transition-all">
+                        Scan Another
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="foodHistory.length" class="mt-8">
+                <h3 class="text-xl mb-4">Today's Food Log</h3>
+                <div class="space-y-2">
+                    <div v-for="(item, index) in foodHistory" :key="index" class="flex justify-between items-center p-2 cyberpunk-card rounded-lg">
+                        <span>{{ item.name }}</span>
+                        <div class="flex items-center">
+                            <span>{{ item.calories }} kcal</span>
+                            <button @click="removeFromHistory(index)" class="ml-2 text-red-500 hover:text-red-400">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    imageUrl: null,
+                    isAnalyzing: false,
+                    analysis: null,
+                    calories: null,
+                    foodHistory: [],
+                    totalCalories: 0,
+                }
+            },
+            methods: {
+                async handleImage(event) {
+                    const file = event.target.files[0]
+                    if (!file) return
+
+                    this.imageUrl = URL.createObjectURL(file)
+                    this.isAnalyzing = true
+                    
+                    try {
+                        // First upload the image
+                        const formData = new FormData()
+                        formData.append('file', file)
+                        formData.append('userId', 'user123')
+                        formData.append('appSlug', 'cybercalories')
+
+                        const uploadResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/storage/upload', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer 8xQ4CQxU2jYRZqgFAtXoF0olUww1'
+                            },
+                            body: formData
+                        })
+                        const uploadData = await uploadResponse.json()
+
+                        // Then analyze the image
+                        const aiResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/ai', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer 8xQ4CQxU2jYRZqgFAtXoF0olUww1',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                messages: [{
+                                    role: 'user',
+                                    content: [
+                                        {
+                                            type: 'text',
+                                            text: 'What food is in this image? Please provide the name and estimated calories.'
+                                        },
+                                        {
+                                            type: 'image_url',
+                                            image_url: {
+                                                url: uploadData.url
+                                            }
+                                        }
+                                    ]
+                                }]
+                            })
+                        })
+                        const aiData = await aiResponse.json()
+                        
+                        this.analysis = aiData.message
+                        // Extract calories from AI response (assuming it's in the format "... XXX calories")
+                        const calorieMatch = aiData.message.match(/(\d+)\s*calories?/i)
+                        if (calorieMatch) {
+                            this.calories = parseInt(calorieMatch[1])
+                        }
+                    } catch (error) {
+                        console.error('Error:', error)
+                        this.analysis = 'Error analyzing image. Please try again.'
+                    } finally {
+                        this.isAnalyzing = false
+                    }
+                },
+                resetImage() {
+                    this.imageUrl = null
+                    this.analysis = null
+                    this.calories = null
+                },
+                addToDaily() {
+                    if (this.calories) {
+                        this.foodHistory.push({
+                            name: this.analysis.split('.')[0],
+                            calories: this.calories
+                        })
+                        this.totalCalories += this.calories
+                        this.resetImage()
+                    }
+                },
+                removeFromHistory(index) {
+                    const removed = this.foodHistory.splice(index, 1)[0]
+                    this.totalCalories -= removed.calories
+                }
+            },
+            mounted() {
+                // Load saved data from localStorage
+                const saved = localStorage.getItem('cyberCalories')
+                if (saved) {
+                    const data = JSON.parse(saved)
+                    this.foodHistory = data.foodHistory
+                    this.totalCalories = data.totalCalories
+                }
+            },
+            watch: {
+                foodHistory: {
+                    handler(newVal) {
+                        // Save to localStorage
+                        localStorage.setItem('cyberCalories', JSON.stringify({
+                            foodHistory: this.foodHistory,
+                            totalCalories: this.totalCalories
+                        }))
+                    },
+                    deep: true
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
